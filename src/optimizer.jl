@@ -1,48 +1,4 @@
 """
-    Duplicate a series of random numbers.
-
-    Example #1:
-    ```julia
-    >>> @macroexpand @nrand(3)
-    quote
-        r1 = rand()
-        r2 = rand()
-        r3 = rand()
-    end
-    ```
-
-    Example #2:
-    ```julia
-    >>> @macroexpand @nrand(2, 2)
-    quote
-        r11 = rand()
-        r21 = rand()
-        r12 = rand()
-        r22 = rand()
-    end
-    ```
-"""
-macro nrand(N::Int)
-    e = Expr(:block)
-    c = Expr(:call, :rand)
-    a = Vector{Any}(undef, N)
-    @inbounds for i in 1:N
-        a[i] = Expr(:(=), Symbol("r", i), c)
-    end
-    e.args = a
-    return Expr(:escape, e)
-end
-macro nrand(M::Int, N::Int)
-    e = Expr(:block)
-    c = Expr(:call, :rand)
-    a = Vector{Any}(undef, M * N)
-    @inbounds for j in 1:N, i in 1:M
-        a[M * (j - 1) + i] = Expr(:(=), Symbol("r", i, j), c)
-    end
-    e.args = a
-    return Expr(:escape, e)
-end
-"""
     Grey-Wolf Optimizer
 
     params:

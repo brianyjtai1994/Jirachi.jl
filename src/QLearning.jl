@@ -56,18 +56,3 @@ function pick_action(Q::AbstractMatrix, Sdx::Int, ε::Real) # @code_warntype ✓
     Adx = pick_action(Q, Sdx)
     rand() < ε ? sample(axes(Q, 1), Adx) : Adx
 end
-"""
-    Exclusive sampling from a given collection.
-
-    params:
-    -------
-    * collection := the collection to sample from
-    * except     := the one to be excluded
-"""
-function sample(collection, except)
-    ret = rand(collection)
-    while ret === except
-        ret = rand(collection)
-    end
-    return ret
-end
