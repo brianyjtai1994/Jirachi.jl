@@ -1,4 +1,4 @@
-export scal!, axpy!, axpby!
+export @nview, scal!, axpy!, xpby!, axpby!
 
 # @code_warntype ✓
 function mach_acc()
@@ -18,6 +18,15 @@ macro nview(arr::Symbol, N::Int)
     a = Vector{Expr}(undef, N)
     @inbounds for i in 1:N
         a[i] = Expr(:(=), Symbol("k", i), :(view($arr, :, $i)))
+    end
+    return Expr(:escape, Expr(:block, a...))
+end
+
+macro nview(arr::Symbol, vars::Symbol...)
+    N = length(vars)
+    a = Vector{Expr}(undef, N)
+    @inbounds for i in 1:N
+        a[i] = Expr(:(=), vars[i], :(view($arr, :, $i)))
     end
     return Expr(:escape, Expr(:block, a...))
 end
@@ -57,6 +66,27 @@ function axpy!(a::Real, x::AbstractVector{Tx}, y::AbstractVector{Ty}) where {Tx<
         end
         @simd for i in eachindex(y)
             y[i] += a * x[i]
+        end
+    end
+end
+
+# x + b * y → y, @code_warntype ✓
+function xpby!(x::AbstractVector{Tx}, b::Real, y::AbstractVector{Ty}) where {Tx<:Real,Ty<:Real}
+    @inbounds begin
+        if iszero(b)
+            @simd for i in eachindex(y)
+                y[i] = x[i]
+            end
+            return nothing
+        end
+        if isone(b)
+            @simd for i in eachindex(y)
+                y[i] += x[i]
+            end
+            return nothing
+        end
+        @simd for i in eachindex(y)
+            y[i] = x[i] + b * y[i]
         end
     end
 end
