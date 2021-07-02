@@ -10,6 +10,7 @@ const MatB = AbstractMatrix; # Buffer Matrix
 include("./BLAS_Lv1.jl")
 include("./BLAS_Lv2.jl")
 include("./RungeKutta.jl")
+include("./BulirschStoer.jl")
 include("./stats.jl")
 include("./sorting.jl")
 include("./QLearning.jl")
