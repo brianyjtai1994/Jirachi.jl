@@ -60,25 +60,21 @@ end
     end
     ```
 """
-macro nrand(N::Int)
-    e = Expr(:block)
-    c = Expr(:call, :rand)
-    a = Vector{Any}(undef, N)
+macro nrand(N::Int, scale::Real=1.0)
+    c = isone(scale) ? :(rand()) : :($scale * rand())
+    a = Vector{Expr}(undef, N)
     @inbounds for i in 1:N
         a[i] = Expr(:(=), Symbol("r", i), c)
     end
-    e.args = a
-    return Expr(:escape, e)
+    return Expr(:escape, Expr(:block, a...))
 end
-macro nrand(M::Int, N::Int)
-    e = Expr(:block)
-    c = Expr(:call, :rand)
-    a = Vector{Any}(undef, M * N)
+macro nrand(M::Int, N::Int, scale::Real=1.0)
+    c = isone(scale) ? :(rand()) : :($scale * rand())
+    a = Vector{Expr}(undef, M * N)
     @inbounds for j in 1:N, i in 1:M
-        a[M * (j - 1) + i] = Expr(:(=), Symbol("r", i, j), c)
+        a[M*(j-1) + i] = Expr(:(=), Symbol("r", i, j), c)
     end
-    e.args = a
-    return Expr(:escape, e)
+    return Expr(:escape, Expr(:block, a...))
 end
 """
     Exclusive sampling from a given collection.

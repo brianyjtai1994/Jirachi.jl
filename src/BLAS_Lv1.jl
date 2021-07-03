@@ -41,6 +41,14 @@ function swap!(v::VecI, i::Int, j::Int) # @code_warntype ✓
 end
 
 # @code_warntype ✓
+function nrm2(x::VecI{Tx}, y::VecI{Ty}, b::VecB{Tb}) where {Tx<:Real,Ty<:Real,Tb<:Real}
+    @simd for i in eachindex(b)
+        @inbounds b[i] = abs2(x[i] - y[i])
+    end
+    return sqrt(sum(b))
+end
+
+# @code_warntype ✓
 function scal!(a::Real, x::AbstractArray{Tx}) where Tx<:Real
     isone(a) && return nothing
     @inbounds begin
