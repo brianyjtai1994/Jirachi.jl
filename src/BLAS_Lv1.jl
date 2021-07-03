@@ -31,10 +31,13 @@ macro nview(arr::Symbol, vars::Symbol...)
     return Expr(:escape, Expr(:block, a...))
 end
 
-# @code_warntype ✓
-function swap!(v::AbstractVector, i::Int, j::Int)
-    @inbounds v[i], v[j] = v[j], v[i]
-    return nothing # to avoid a tuple-allocation
+function swap!(v::VecI, i::Int, j::Int) # @code_warntype ✓
+    @inbounds begin
+        temp = v[i]
+        v[i] = v[j]
+        v[j] = temp
+    end
+    return nothing
 end
 
 # @code_warntype ✓
