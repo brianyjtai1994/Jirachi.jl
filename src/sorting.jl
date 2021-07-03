@@ -1,31 +1,24 @@
-bilast_insert(arr::AbstractVector, val::T) where T = bilast_insert(arr, val, 1, length(arr)) # @code_warntype ✓
-# @code_warntype ✓
-function bilast_insert(arr::AbstractVector, val::T, ldx::Int, rdx::Int) where T
-    ldx ≥ rdx && return ldx
-    ub = rdx # upper bound
-    @inbounds begin
-        while ldx < rdx
-            mdx = (ldx + rdx) >> 1 # midpoint (binary search)
-            val < arr[mdx] ? rdx = mdx : ldx = mdx + 1 # arr[mdx].f == val in this case
-        end
-        if ldx == ub && arr[ldx] ≤ val
-            ldx += 1
-        end
+biinsert(arr::VecI, val::T) where T = biinsert(arr, val, 1, length(arr)) # @code_warntype ✓
+function biinsert(arr::VecI, val::T, lx::Int, rx::Int) where T           # @code_warntype ✓
+    lx ≥ rx && return lx
+    ub = rx # upper bound
+    while lx < rx
+        mx = (lx + rx) >> 1                                    # midpoint (binary search)
+        @inbounds isless(val, arr[mx]) ? rx = mx : lx = mx + 1 # arr[mx].f == val in this case
     end
-    return ldx
+    @inbounds lx == ub && !isless(val, arr[lx]) && (lx += 1)   # lx = upper bound && arr[lx] ≤ val
+    return lx
 end
 
-binary_insertsort!(arr::AbstractVector) = binary_insertsort!(arr, 1, length(arr)) # @code_warntype ✓
-# @code_warntype ✓
-function binary_insertsort!(arr::AbstractVector, ldx::Int, rdx::Int)
-    @inbounds for idx in ldx+1:rdx
-        val = arr[idx]
-        jdx = idx
-        loc = bilast_insert(arr, val, ldx, idx)
-        while jdx > loc
-            swap!(arr, jdx, jdx - 1)
-            jdx -= 1
+biinsertsort!(arr::VecI) = biinsertsort!(arr, 1, length(arr)) # @code_warntype ✓
+function biinsertsort!(arr::VecI, lx::Int, rx::Int)           # @code_warntype ✓
+    for ix in lx+1:rx
+        @inbounds val = arr[ix]
+        jx = ix
+        lc = biinsert(arr, val, lx, ix) # location
+        while jx > lc
+            swap!(arr, jx, jx - 1)
+            jx -= 1
         end
     end
-    return nothing
 end
