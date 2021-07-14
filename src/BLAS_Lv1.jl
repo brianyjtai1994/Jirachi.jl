@@ -1,4 +1,4 @@
-export @nview, scal!, axpy!, xpby!, axpby!
+export @nview, apy2, swap!, scal!, axpy!, xpby!, axpby!
 
 # @code_warntype ✓
 function mach_acc()
@@ -31,11 +31,32 @@ macro nview(arr::Symbol, vars::Symbol...)
     return Expr(:escape, Expr(:block, a...))
 end
 
+function apy2(x::Real, y::Real)
+    isnan(x) && return x
+    isnan(y) && return y
+    # general case
+    xabs = abs(x)
+    yabs = abs(y)
+    w = max(xabs, yabs)
+    z = min(xabs, yabs)
+    iszero(z) && return w
+    return w * sqrt(1.0 + abs2(z / w))
+end
+
 function swap!(v::VecI, i::Int, j::Int) # @code_warntype ✓
     @inbounds begin
         temp = v[i]
         v[i] = v[j]
         v[j] = temp
+    end
+    return nothing
+end
+
+function swap!(v::MatI, i1::Int, j1::Int, i2::Int, j2::Int) # @code_warntype ✓
+    @inbounds begin
+        temp     = v[i1,j1]
+        v[i1,j1] = v[i2,j2]
+        v[i2,j2] = temp
     end
     return nothing
 end

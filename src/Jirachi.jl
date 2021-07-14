@@ -7,6 +7,8 @@ const MatI = AbstractMatrix; # Input  Matrix
 const MatO = AbstractMatrix; # Output Matrix
 const MatB = AbstractMatrix; # Buffer Matrix
 
+const 𝚷 = 2.0 * π
+
 fcall(fn::Function, x::VecI) = fn(x)
 
 include("./BLAS_Lv1.jl")

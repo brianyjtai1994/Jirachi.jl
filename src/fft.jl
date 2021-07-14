@@ -1,6 +1,6 @@
 export FFT, fft!
 
-function clp2(x::Int)
+function _clp2(x::Int)
     x == 0 && return 1
     x == 1 && return 2
     x = x - 1
@@ -98,13 +98,26 @@ function fft!(fft::FFT, dat::VecI, sig::VecI)
 
     fftshift!(cxy)
 
-    @inbounds for i in toN
-        xi = cxy[i,1]
-        yi = cxy[i,2]
-        crθ[i,1] = sqrt(xi * xi + yi * yi) / H
-        crθ[i,2] = atan(yi, xi)
+    #### Phases unwrapping
+    halfπ = 0.5 * π
+    @inbounds crθ[1,2] = prevθ = atan(cxy[1,2], cxy[1,1])
+    @inbounds crθ[1,1] = 0.0
+    for i in 2:length(toN)
+        @inbounds crθ[i,2] = thisθ = atan(cxy[i,2], cxy[i,1])
+        diff  = thisθ - prevθ
+        θmod  = rem2pi(diff + halfπ, RoundDown) - halfπ
+        diff  > 0.0 && θmod == -halfπ && (θmod = halfπ)
+        @inbounds crθ[i,1] = abs(diff) < halfπ ? crθ[i-1,1] : θmod - diff + crθ[i-1,1]
+        prevθ = thisθ
     end
-
+    @simd for i in toN
+        @inbounds crθ[i,2] += crθ[i,1]
+    end
+    #### Compute amplitudes
+    @simd for i in toN
+        @inbounds crθ[i,1] = apy2(cxy[i,1], cxy[i,2]) / H
+    end
+    #### Generate FFT frequency coordinate
     @inbounds fftfreq!(fft.frq, inv(dat[end] - dat[1]))
     return nothing
 end
@@ -156,15 +169,10 @@ end
 
 function fftshift!(x::MatI)
     N = size(x, 1) >> 1
-    @inbounds for j in axes(x, 2)
-        for i in eachindex(1:N)
-            I = i + N
-            temp   = x[i,j]
-            x[i,j] = x[I,j]
-            x[I,j] = temp
-        end
+    @inbounds for j in axes(x, 2), i in eachindex(1:N)
+        swap!(x, i, j, i+N, j)
     end
-end 
+end
 
 function fftfreq!(f::VecI, Δf::Real)
     nhalfp1 = length(f) >> 1 + 1
