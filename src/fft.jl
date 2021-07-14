@@ -1,3 +1,5 @@
+export FFT, fft!
+
 function clp2(x::Int)
     x == 0 && return 1
     x == 1 && return 2
@@ -10,42 +12,105 @@ function clp2(x::Int)
     return x + 1
 end
 
-function twiddle!(ws::MatI, sz::Int)
+function _log2(x::Int)
+    x == 0 && error("_log2(x): x cannot be zero!")
+    r = 0
+    x > 4294967295 && (x >>= 32; r += 32)
+    x >      65535 && (x >>= 16; r += 16)
+    x >        255 && (x >>=  8; r +=  8)
+    x >         15 && (x >>=  4; r +=  4)
+    x >          3 && (x >>=  2; r +=  2)
+    x >          1 && (x >>=  1; r +=  1)
+    return r
+end
+
+struct FFT
+    cxy::Matrix{Float64}
+    crθ::Matrix{Float64}
+    fac::Matrix{Float64}
+    frq::Vector{Float64}
+
+    function FFT(N::Int)
+        cxy = Matrix(undef, N, 2)
+        crθ = Matrix(undef, N, 2)
+        frq = Vector(undef, N)
+        return new(cxy, crθ, twiddle(N >> 1), frq)
+    end
+end
+
+function twiddle(sz::Int)
+    ws = Matrix{Float64}(undef, sz, 2)
     hz = sz >> 1
     ix = 1
     rc = 1.0
     rs = 0.0
     cf = cospi(inv(sz))
     sf = sinpi(inv(sz))
-    #### initialize: θ = 0
-    @inbounds ws[ix,1] = rc
-    @inbounds ws[ix,2] = rs
-    while ix < hz
+    @inbounds begin
+        #### initialize: θ = 0
+        ws[ix,1] = rc
+        ws[ix,2] = rs
+        while ix < hz
+            ix += 1
+            tc  = cf * rc - sf * rs
+            ts  = sf * rc + cf * rs
+            rc  = tc
+            rs  = ts
+            ws[ix,1] = rc
+            ws[ix,2] = rs
+        end
+        #### specific case: θ = π / 2
         ix += 1
-        tc  = cf * rc - sf * rs
-        ts  = sf * rc + cf * rs
-        rc  = tc
-        rs  = ts
-        @inbounds ws[ix,1] = rc
-        @inbounds ws[ix,2] = rs
-    end
-    #### specific case: θ = π / 2
-    ix += 1
-    @inbounds ws[ix,1] = 0.0
-    @inbounds ws[ix,2] = 1.0
-    #### remaining cases: θ > π / 2
-    jx = ix
-    while ix < sz
-        ix += 1
-        jx -= 1
-        @inbounds ws[ix,1] = -ws[jx,1]
-        @inbounds ws[ix,2] =  ws[jx,2]
+        ws[ix,1] = 0.0
+        ws[ix,2] = 1.0
+        #### remaining cases: θ > π / 2
+        jx = ix
+        while ix < sz
+            ix += 1
+            jx -= 1
+            ws[ix,1] = -ws[jx,1]
+            ws[ix,2] =  ws[jx,2]
+        end
     end
     return ws
 end
 
+function fft!(fft::FFT, dat::VecI, sig::VecI)
+    cxy = fft.cxy
+    crθ = fft.crθ
+    toN = eachindex(sig)
+
+    H = length(toN) >> 1
+
+    if isone(_log2(H) & 1)
+        @inbounds for i in toN
+            cxy[i,1] = sig[i]
+            cxy[i,2] = 0.0
+        end
+        difnn!(cxy, crθ, fft.fac, H)
+    else
+        @inbounds for i in toN
+            crθ[i,1] = sig[i]
+            crθ[i,2] = 0.0
+        end
+        difnn!(crθ, cxy, fft.fac, H)
+    end
+
+    fftshift!(cxy)
+
+    @inbounds for i in toN
+        xi = cxy[i,1]
+        yi = cxy[i,2]
+        crθ[i,1] = sqrt(xi * xi + yi * yi) / H
+        crθ[i,2] = atan(yi, xi)
+    end
+
+    @inbounds fftfreq!(fft.frq, inv(dat[end] - dat[1]))
+    return nothing
+end
+
 function butterfly!(y::MatO, x::MatI, w::MatI, jx::Int, kx::Int, wx::Int, H::Int, h::Int, S::Int, s::Int)
-    @inbounds for _ in 1:h
+    @inbounds for _ in eachindex(1:h)
         jy = jx + s
 
         wr = w[wx, 1]
@@ -66,24 +131,19 @@ function butterfly!(y::MatO, x::MatI, w::MatI, jx::Int, kx::Int, wx::Int, H::Int
     end
 end
 
-function difnn(x::AbstractVector, sz::Int)
-    a = Matrix{Float64}(undef, sz, 2)
-    b = Matrix{Float64}(undef, sz, 2)
-    w = Matrix{Float64}(undef, sz, 2)
-    H = h = sz >> 1
+function difnn!(a::MatI, b::MatI, w::MatI, H::Int)
+    h = H
     s = 1
     S = 2
     r = false
 
-    twiddle!(w, H)
-    @inbounds for i in eachindex(1:sz)
-        a[i, 1] = x[i]
-        a[i, 2] = 0.0
-    end
-
     while h > 0
-        for ix in 1:s
-            r ? butterfly!(a, b, w, ix, ix, 1, H, h, S, s) : butterfly!(b, a, w, ix, ix, 1, H, h, S, s)
+        for ix in eachindex(1:s)
+            if r
+                butterfly!(a, b, w, ix, ix, 1, H, h, S, s)
+            else
+                butterfly!(b, a, w, ix, ix, 1, H, h, S, s)
+            end
         end
 
         h >>= 1
@@ -91,34 +151,25 @@ function difnn(x::AbstractVector, sz::Int)
         S <<= 1
         r = !r
     end
-
-    if r
-        fftshift!(b)
-        return b
-    else
-        fftshift!(a)
-        return a
-    end
+    return nothing
 end
 
 function fftshift!(x::MatI)
     N = size(x, 1) >> 1
-    @inbounds for i in eachindex(1:N)
-        temp_r   = x[i,1]
-        x[i,1]   = x[i+N,1]
-        x[i+N,1] = temp_r
-        temp_i   = x[i,2]
-        x[i,2]   = x[i+N,2]
-        x[i+N,2] = temp_i
+    @inbounds for j in axes(x, 2)
+        for i in eachindex(1:N)
+            I = i + N
+            temp   = x[i,j]
+            x[i,j] = x[I,j]
+            x[I,j] = temp
+        end
     end
 end 
 
-function fftfreq(t::VecI{T}) where T<:Real
-    f  = similar(t)
-    Δf = inv(t[end] - t[1])
+function fftfreq!(f::VecI, Δf::Real)
     nhalfp1 = length(f) >> 1 + 1
     @simd for i in eachindex(f)
         @inbounds f[i] = Δf * (i - nhalfp1)
     end
-    return f
+    return nothing
 end
