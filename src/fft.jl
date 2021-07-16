@@ -75,12 +75,13 @@ function twiddle(sz::Int)
     return ws
 end
 
-function fft!(fft::FFT, dat::VecI, sig::VecI)
+function fft!(fft::FFT, sig::VecI, timestep::Real)
     cxy = fft.cxy
     crθ = fft.crθ
     toN = eachindex(sig)
 
-    H = length(toN) >> 1
+    N = length(toN)
+    H = N >> 1
 
     if isone(_log2(H) & 1)
         @inbounds for i in toN
@@ -102,7 +103,7 @@ function fft!(fft::FFT, dat::VecI, sig::VecI)
     halfπ = 0.5 * π
     @inbounds crθ[1,2] = prevθ = atan(cxy[1,2], cxy[1,1])
     @inbounds crθ[1,1] = 0.0
-    for i in 2:length(toN)
+    for i in 2:N
         @inbounds crθ[i,2] = thisθ = atan(cxy[i,2], cxy[i,1])
         diff  = thisθ - prevθ
         θmod  = rem2pi(diff + halfπ, RoundDown) - halfπ
@@ -113,12 +114,16 @@ function fft!(fft::FFT, dat::VecI, sig::VecI)
     @simd for i in toN
         @inbounds crθ[i,2] += crθ[i,1]
     end
+    refθ = crθ[H+1,2]
+    @simd for i in toN
+        @inbounds crθ[i,2] -= refθ
+    end
     #### Compute amplitudes
     @simd for i in toN
         @inbounds crθ[i,1] = apy2(cxy[i,1], cxy[i,2]) / H
     end
-    #### Generate FFT frequency coordinate
-    @inbounds fftfreq!(fft.frq, inv(dat[end] - dat[1]))
+    #### Generate FFT frequency coordinate, frq[H+1] = 0
+    @inbounds fftfreq!(fft.frq, inv(timestep * N))
     return nothing
 end
 
