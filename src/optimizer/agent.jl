@@ -5,7 +5,7 @@ mutable struct Agent
     # v := viability / feasibility
     # c := contravention / violation
 
-    Agent(lb::NTuple, ub::NTuple) = new(born(lb, ub), Inf, false, 0.0) # @code_warntype ✓
+    Agent(ND::Int) = new(Vector{Float64}(undef, ND), Inf, false, 0.0) # @code_warntype ✓
 end
 
 function Base.isequal(a1::Agent, a2::Agent) # @code_warntype ✓
@@ -27,30 +27,17 @@ function Base.isless(a1::Agent, a2::Agent) # @code_warntype ✓
 end
 
 #### random initialization, @code_warntype ✓
-function born(lb::NTuple{ND}, ub::NTuple{ND}) where ND
-    if @generated
-        a = Vector{Expr}(undef, ND)
-        @inbounds for i in eachindex(a)
-            a[i] = :(lb[$i] + rand() * (ub[$i] - lb[$i]))
-        end
-        return quote
-            $(Expr(:meta, :inline))
-            @inbounds return $(Expr(:vect, a...))
-        end
-    else
-        x = Vector{Float64}(undef, ND)
-        @simd for i in eachindex(x)
-            @inbounds x[i] = lb[i] + rand() * (ub[i] - lb[i])
-        end
-        return x
+function born!(x::VecO, lb::NTuple{ND}, ub::NTuple{ND}) where ND
+    @simd for i in eachindex(x)
+        @inbounds x[i] = lb[i] + rand() * (ub[i] - lb[i])
     end
 end
 
 #### groups, @code_warntype ✓
-function return_agents(lb::NTuple, ub::NTuple, NP::Int)
+function return_agents(ND::Int, NP::Int)
     agents = Vector{Agent}(undef, NP)
     @inbounds for i in eachindex(agents)
-        agents[i] = Agent(lb, ub)
+        agents[i] = Agent(ND)
     end
     return agents
 end

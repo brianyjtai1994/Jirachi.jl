@@ -1,18 +1,34 @@
-export minimize!
+export Minimizer, minimize!
 
 include("./agent.jl")
 include("./constraint.jl")
 include("./optimizer.jl")
 
-logistic(x::Real, x0::Real, a::Real, k::Real, c::Real) = a / (1.0 + exp(k * (x0 - x))) + c
+struct Minimizer
+    xsol::Vector{Float64}
+    xerr::Vector{Float64}
+    buff::Vector{Float64}
+    fork::Vector{Int64}
+    pool::Vector{Agent}
+    NP::Int
+    NR::Int
 
-function welford_step(μ::Real, s::Real, v::Real, c::Real)
-    isone(c) && return v, 0.0
-    s = s * (c - 1)
-    m = μ + (v - μ) / c
-    s = s + (v - μ) * (v - m)
-    μ = m
-    return μ, s / (c - 1)
+    function Minimizer(ND::Int, NP::Int; NR::Int=0)
+        NR   = NR < ND+1 ? ND+1 : NR
+        xsol = Vector{Float64}(undef, ND)
+        xerr = Vector{Float64}(undef, ND)
+        buff = Vector{Float64}(undef, ND)
+        fork = Vector{Int}(undef, NR)
+        pool = return_agents(ND, NP)
+        return new(xsol, xerr, buff, fork, pool, NP, NR)
+    end
+end
+
+# @code_warntype ✓
+function inits!(agents::VecI{Agent}, lb::NTuple, ub::NTuple)
+    for agent in agents
+        born!(agent.x, lb, ub)
+    end
 end
 
 # @code_warntype ✓
@@ -58,17 +74,22 @@ function group!(fork::VecI{Int}, agents::VecI{Agent}, NR::Int, NC::Int)
 end
 
 # @code_warntype ✓
-function minimize!(xsol::VecI{T}, xerr::VecI{T}, fn::Function, lb::NTuple{ND,T}, ub::NTuple{ND,T}, NP::Int, NR::Int, itmax::Int, dmax::Real, avgtimes::Int) where {ND,T<:Real}
+function minimize!(obj::Minimizer, fn::Function, lb::NTuple{ND,T}, ub::NTuple{ND,T}, itmax::Int, dmax::Real, avgtimes::Int) where {ND,T<:Real}
+    NP = obj.NP
+    NR = obj.NR
     NC = NP - NR
 
-    agents = return_agents(lb, ub, NP)
+    cons = boxbounds(lb, ub)
+    xsol = obj.xsol
+    xerr = obj.xerr
+    buff = obj.buff
+    fork = obj.fork
+
+    agents = obj.pool
     elites = return_elites(agents, NR)
     throng = return_throng(agents, NR, NP)
 
-    cons = boxbounds(lb, ub)
-    buff = Vector{T}(undef, ND)
-    fork = Vector{Int}(undef, NR)
-
+    inits!(agents, lb, ub)
     inits!(agents, fn, cons)
     biinsertsort!(agents)
 
