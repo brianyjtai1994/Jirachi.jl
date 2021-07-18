@@ -46,31 +46,29 @@ function twiddle(sz::Int)
     rs = 0.0
     cf = cospi(inv(sz))
     sf = sinpi(inv(sz))
-    @inbounds begin
-        #### initialize: θ = 0
+    #### initialize: θ = 0
+    @inbounds ws[ix,1] = rc
+    @inbounds ws[ix,2] = rs
+    @inbounds while ix < hz
+        ix += 1
+        tc  = cf * rc - sf * rs
+        ts  = sf * rc + cf * rs
+        rc  = tc
+        rs  = ts
         ws[ix,1] = rc
         ws[ix,2] = rs
-        while ix < hz
-            ix += 1
-            tc  = cf * rc - sf * rs
-            ts  = sf * rc + cf * rs
-            rc  = tc
-            rs  = ts
-            ws[ix,1] = rc
-            ws[ix,2] = rs
-        end
-        #### specific case: θ = π / 2
+    end
+    #### specific case: θ = π / 2
+    ix += 1
+    @inbounds ws[ix,1] = 0.0
+    @inbounds ws[ix,2] = 1.0
+    #### remaining cases: θ > π / 2
+    jx = ix
+    @inbounds while ix < sz
         ix += 1
-        ws[ix,1] = 0.0
-        ws[ix,2] = 1.0
-        #### remaining cases: θ > π / 2
-        jx = ix
-        while ix < sz
-            ix += 1
-            jx -= 1
-            ws[ix,1] = -ws[jx,1]
-            ws[ix,2] =  ws[jx,2]
-        end
+        jx -= 1
+        ws[ix,1] = -ws[jx,1]
+        ws[ix,2] =  ws[jx,2]
     end
     return ws
 end
@@ -114,7 +112,7 @@ function fft!(fft::FFT, sig::VecI, timestep::Real)
     @simd for i in toN
         @inbounds crθ[i,2] += crθ[i,1]
     end
-    refθ = crθ[H+1,2]
+    @inbounds refθ = crθ[H+1,2]
     @simd for i in toN
         @inbounds crθ[i,2] -= refθ
     end
@@ -123,7 +121,7 @@ function fft!(fft::FFT, sig::VecI, timestep::Real)
         @inbounds crθ[i,1] = apy2(cxy[i,1], cxy[i,2]) / H
     end
     #### Generate FFT frequency coordinate, frq[H+1] = 0
-    @inbounds fftfreq!(fft.frq, inv(timestep * N))
+    fftfreq!(fft.frq, inv(timestep * N))
     return nothing
 end
 
@@ -157,11 +155,7 @@ function difnn!(a::MatI, b::MatI, w::MatI, H::Int)
 
     while h > 0
         for ix in eachindex(1:s)
-            if r
-                butterfly!(a, b, w, ix, ix, 1, H, h, S, s)
-            else
-                butterfly!(b, a, w, ix, ix, 1, H, h, S, s)
-            end
+            r ? butterfly!(a, b, w, ix, ix, 1, H, h, S, s) : butterfly!(b, a, w, ix, ix, 1, H, h, S, s)
         end
 
         h >>= 1

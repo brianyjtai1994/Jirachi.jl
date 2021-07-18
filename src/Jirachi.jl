@@ -11,10 +11,10 @@ const 𝚷 = 2.0 * π
 
 fcall(fn::Function, x::VecI) = fn(x)
 
-include("./BLAS_Lv1.jl")
-include("./BLAS_Lv2.jl")
-include("./RungeKutta.jl")
-include("./BulirschStoer.jl")
+include("./BLAS/BLAS_Lv1.jl")
+include("./BLAS/BLAS_Lv2.jl")
+include("./DiffEq/RungeKutta.jl")
+include("./DiffEq/BulirschStoer.jl")
 include("./interpolation.jl")
 include("./fft.jl")
 include("./stats.jl")

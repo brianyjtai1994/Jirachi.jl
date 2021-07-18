@@ -17,9 +17,9 @@ Sigmoid S-shaped function.
 ```
 """
 sigmoid(x::Real) = inv(1.0 + exp(-x))
-function sigmoid!(y::AbstractVector{S}, x::AbstractVector{T}) where {S<:Real,T<:Real}
-    @inbounds @simd for i in eachindex(y)
-        y[i] = sigmoid(x[i])
+function sigmoid!(y::VecO{S}, x::VecI{T}) where {S<:Real,T<:Real}
+    @simd for i in eachindex(y)
+        @inbounds y[i] = sigmoid(x[i])
     end
     return nothing
 end
@@ -32,7 +32,7 @@ Algebraic S-shaped function.
 ```
 """
 algebraic(x::Real, a::Real) = x / (1.0 + abs(x / a))
-function algebraic!(y::AbstractVector{S}, x::AbstractVector{T}, a::Real) where {S<:Real,T<:Real}
+function algebraic!(y::VecO{S}, x::VecI{T}, a::Real) where {S<:Real,T<:Real}
     @inbounds @simd for i in eachindex(y)
         y[i] = algebraic(x[i], a)
     end

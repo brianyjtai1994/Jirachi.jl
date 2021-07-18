@@ -1,6 +1,6 @@
 export polyinterp!
 
-function polyinterp!(ydes::VecO{Ty}, xdes::VecO{Tx}, ysrc::VecI, xsrc::VecI; order::Int=3) where {Tx<:Real, Ty<:Real}
+function polyinterp!(ydes::VecO{Ty}, xdes::VecO{Tx}, ysrc::VecI, xsrc::VecI; order::Int=3) where {Tx<:Real,Ty<:Real}
     lx = 1                     # left index
     rx = sz = order + 1        # right index
     ia = sz >> 1 + 1           # anchor index

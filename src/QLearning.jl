@@ -13,12 +13,10 @@
     for
         Q(prevA, prevS) += α * [prevR + γ * Q(nextA, nextS) - Q(prevA, prevS)]
 """
-function update_Qtable!(Q::AbstractMatrix, prevS::Int, prevA::Int, prevR::Real, nextS::Int, α::Real, γ::Real) # @code_warntype ✓
-    @inbounds begin
-        nextA = pick_action(Q, nextS)
-        Q[prevA, prevS] *= 1.0 - α
-        Q[prevA, prevS] += α * (prevR + γ * Q[nextA, nextS])
-    end
+function update_Qtable!(Q::MatI, prevS::Int, prevA::Int, prevR::Real, nextS::Int, α::Real, γ::Real) # @code_warntype ✓
+    nextA = pick_action(Q, nextS)
+    @inbounds Q[prevA, prevS] *= 1.0 - α
+    @inbounds Q[prevA, prevS] += α * (prevR + γ * Q[nextA, nextS])
     return nothing
 end
 """
@@ -30,7 +28,7 @@ end
     * Sdx := index of current state
     * Adx := index of picked action (return)
 """
-function pick_action(Q::AbstractMatrix, Sdx::Int) # @code_warntype ✓
+function pick_action(Q::MatI, Sdx::Int) # @code_warntype ✓
     Adx = 0
     tmp = -Inf
     @inbounds for idx in axes(Q, 1)
@@ -52,7 +50,7 @@ end
     * Adx := index of picked action (return)
     * ε   := greedy factor for exploration, ε ∈ (0, 1], ε(t = 0) = 1
 """
-function pick_action(Q::AbstractMatrix, Sdx::Int, ε::Real) # @code_warntype ✓
+function pick_action(Q::MatI, Sdx::Int, ε::Real) # @code_warntype ✓
     Adx = pick_action(Q, Sdx)
     rand() < ε ? sample(axes(Q, 1), Adx) : Adx
 end

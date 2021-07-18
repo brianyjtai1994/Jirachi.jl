@@ -38,20 +38,21 @@ function multistepBS!(ηt::VecI, t0::Real, hk::Real, y0::VecI, diff!::Function, 
     copy!(ηm, y0)
     diff!(ηn, t0, ηm; fargs...)
     xpby!(ηm, hk, ηn)
+    one2n = eachindex(ηt)
 
     tj = t0 + hk; j = 1
     while j < nk
         diff!(ηt, tj, ηn; fargs...)
         xpby!(ηm, h2, ηt)
-        @inbounds @simd for i in eachindex(ηt)
-            ηm[i], ηn[i] = ηn[i], ηt[i]
+        @simd for i in one2n
+            @inbounds ηm[i], ηn[i] = ηn[i], ηt[i]
         end
         tj += hk; j += 1
     end
 
     diff!(ηt, tj, ηn; fargs...)
-    @inbounds @simd for i in eachindex(ηt)
-        ηt[i] = 0.5 * (ηn[i] + ηm[i] + hk * ηt[i])
+    @simd for i in one2n
+        @inbounds ηt[i] = 0.5 * (ηn[i] + ηm[i] + hk * ηt[i])
     end
 end
 
@@ -66,25 +67,24 @@ end
 function extrap2zero!(Ts::MatO{T}, xs::NTuple, ηt::VecI, k::Int) where T
     isone(k) && return extrap2zero!(Ts, xs, ηt)
     zeroT = zero(T)
-    @inbounds begin
-        for j in 1:k-1
-            @simd for i in eachindex(ηt)
-                Ts[i,j] -= ηt[i]
-            end
+    one2n = eachindex(ηt)
+    for j in 1:k-1
+        @simd for i in one2n
+            @inbounds Ts[i,j] -= ηt[i]
         end
-        @simd for i in eachindex(ηt)
-            Ts[i,k] = zeroT
+    end
+    @simd for i in one2n
+        @inbounds Ts[i,k] = zeroT
+    end
+    for j in reverse(1:k-1)
+        @inbounds xratio = xs[k] / xs[j] - 1.0
+        @inbounds for i in one2n
+            Ts[i,j] += (Ts[i,j] - Ts[i,j+1]) / xratio
         end
-        for j in reverse(1:k-1)
-            xratio = xs[k] / xs[j] - 1.0
-            for i in eachindex(ηt)
-                Ts[i,j] += (Ts[i,j] - Ts[i,j+1]) / xratio
-            end
-        end
-        for j in 1:k
-            @simd for i in eachindex(ηt)
-                Ts[i,j] += ηt[i]
-            end
+    end
+    for j in eachindex(1:k)
+        @simd for i in one2n
+            @inbounds Ts[i,j] += ηt[i]
         end
     end
 end
@@ -138,7 +138,7 @@ function (stbs::StepperBS{KMAX})(ys::VecO{T}, t0::Real, y0::VecI, f!::Function; 
     preE = Inf # previous error
 
     @nview Ts Tsol Tref # Ts[solution], Ts[reference]
-    for k in 1:KMAX
+    @inbounds for k in 1:KMAX
         multistepBS!(ηt, t0, hs[k], y0, f!, ns[k], ηm, ηn; fargs...)
         extrap2zero!(Ts, xs, ηt, k)
 
@@ -149,7 +149,7 @@ function (stbs::StepperBS{KMAX})(ys::VecO{T}, t0::Real, y0::VecI, f!::Function; 
         end
         preE = nowE
     end
-    @inbounds @simd for i in eachindex(ys)
-        ys[i] = Tsol[i]
+    @simd for i in eachindex(ys)
+        @inbounds ys[i] = Tsol[i]
     end
 end

@@ -25,14 +25,14 @@ struct Minimizer
 end
 
 # @code_warntype ✓
-function inits!(agents::VecI{Agent}, lb::NTuple, ub::NTuple)
+function inits!(agents::VecO{Agent}, lb::NTuple, ub::NTuple)
     for agent in agents
         born!(agent.x, lb, ub)
     end
 end
 
 # @code_warntype ✓
-function inits!(agents::Vector{Agent}, f::Function, cons::NTuple)
+function inits!(agents::VecO{Agent}, f::Function, cons::NTuple)
     fmax = -Inf
     for agent in agents
         violation = eval_violation(agent.x, cons)
@@ -47,29 +47,27 @@ function inits!(agents::Vector{Agent}, f::Function, cons::NTuple)
 end
 
 # @code_warntype ✓
-function group!(fork::VecI{Int}, agents::VecI{Agent}, NR::Int, NC::Int)
+function group!(fork::VecO{Int}, agents::VecI{Agent}, NR::Int, NC::Int)
     diversity = 0.0
-    @inbounds begin
-        for i in eachindex(fork)
-            diversity += agents[NR + 1].f - agents[i].f
+    @inbounds for i in eachindex(fork)
+        diversity += agents[NR + 1].f - agents[i].f
+    end
+    if iszero(diversity) || isnan(diversity)
+        fill!(fork, 1)
+    else
+        @inbounds for i in eachindex(fork)
+            fork[i] = max(1, round(Int, NC * (agents[NR + 1].f - agents[i].f) / diversity))
         end
-        if iszero(diversity) || isnan(diversity)
-            fill!(fork, 1)
-        else
-            for i in eachindex(fork)
-                fork[i] = max(1, round(Int, NC * (agents[NR + 1].f - agents[i].f) / diversity))
-            end
-        end
-        res = NC - sum(fork) # residue
-        idx = 2
-        while res > 0
-            fork[idx] += 1; res -= 1
-            idx < NR ? idx += 1 : idx = 2
-        end
-        while res < 0
-            fork[idx] = max(1, fork[idx] - 1); res += 1
-            idx < NR ? idx += 1 : idx = 2
-        end
+    end
+    res = NC - sum(fork) # residue
+    idx = 2
+    while res > 0
+        @inbounds fork[idx] += 1; res -= 1
+        idx < NR ? idx += 1 : idx = 2
+    end
+    while res < 0
+        @inbounds fork[idx] = max(1, fork[idx] - 1); res += 1
+        idx < NR ? idx += 1 : idx = 2
     end
 end
 
@@ -94,10 +92,10 @@ function minimize!(obj::Minimizer, fn::Function, lb::NTuple{ND,T}, ub::NTuple{ND
     biinsertsort!(agents)
 
     generation = 0
-    @inbounds while generation < avgtimes
+    while generation < avgtimes
         generation += 1
         itcount     = 0
-        while itcount < itmax
+        @inbounds while itcount < itmax
             itcount += 1
             ss = logistic(itcount, 0.5 * itmax, -0.618, 20.0 / itmax, 2.0)
             group!(fork, agents, NR, NC)
@@ -125,7 +123,7 @@ function minimize!(obj::Minimizer, fn::Function, lb::NTuple{ND,T}, ub::NTuple{ND
             end
             for rx in 2:NR
                 if !(dmax < nrm2(agents[1].x, elites[rx].x, buff)) || !(0.1 < rand())
-                    wca_move!(buff, lb, ub)
+                    born!(buff, lb, ub)
                     check!(buff, elites, rx, fn, cons)
                 end
             end
@@ -141,8 +139,8 @@ function minimize!(obj::Minimizer, fn::Function, lb::NTuple{ND,T}, ub::NTuple{ND
             biinsertsort!(agents)
             dmax -= dmax / itmax
         end
-        xnew = agents[1].x
-        for i in eachindex(xsol)
+        @inbounds xnew = agents[1].x
+        @inbounds for i in eachindex(xsol)
             xsol[i], xerr[i] = welford_step(xsol[i], xerr[i], xnew[i], generation)
         end
     end
